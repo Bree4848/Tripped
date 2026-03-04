@@ -1,0 +1,52 @@
+name: tripped_mobile
+description: "A new Flutter project."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.8
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_dotenv: ^5.1.0
+  http: ^1.1.0
+  flutter_secure_storage: ^9.0.0
+  provider: ^6.1.2
+  url_launcher: ^6.3.0
+  fl_chart: ^0.70.0
+  intl: ^0.19.0
+  csv: ^6.0.0
+  path_provider: ^2.1.0
+  share_plus: ^10.1.0
+  cupertino_icons: ^1.0.8
+  supabase_flutter: ^2.12.0
+  image_picker: ^1.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  flutter_launcher_icons: "^0.13.1"
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/app_logo.png"
+  adaptive_icon_background: "#1A237E" 
+  adaptive_icon_foreground: "assets/images/app_logo.png"
+
+# --- SPLASH SCREEN CONFIGURATION ---
+flutter_native_splash:
+  color: "#1A237E" # Background color heme)
+  image: "assets/images/app_logo.png"
+  android_12:
+    image: "assets/images/app_logo.png"
+    color: "#1A237E"
+  web: false
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+    - assets/images/app_logo.png
