@@ -67,10 +67,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       if (mounted) {
+        // Updated Success Message based on Role
+        String successMessage = _selectedRole == 'resident'
+            ? "Success! Check your email to verify your account."
+            : "Success! Your technician account is pending admin approval.";
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Success! Check your email."),
+          SnackBar(
+            content: Text(successMessage),
             backgroundColor: Colors.green,
+            duration: const Duration(seconds: 5),
           ),
         );
         Navigator.pop(context);

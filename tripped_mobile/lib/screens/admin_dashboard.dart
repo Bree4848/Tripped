@@ -31,16 +31,36 @@ class _AdminDashboardState extends State<AdminDashboard> {
     super.dispose();
   }
 
+  // --- APPROVAL LOGIC ---
+  Future<void> _updateApprovalStatus(String userId, bool approve) async {
+    try {
+      await _supabase
+          .from('profiles')
+          .update({'is_approved': approve})
+          .eq('id', userId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(approve ? "Technician Approved" : "Approval Revoked"),
+            backgroundColor: approve ? Colors.green : Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint("Approval Error: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         backgroundColor: Colors.grey[100],
         appBar: BrandedAppBar(
           screenName: "Admin Command Center",
           backgroundColor: Colors.indigo[900],
-          // --- UPDATED: REPLACED LEADING WITH ACTIONS ---
           actions: [
             IconButton(
               tooltip: 'Back to Portal Home',
@@ -64,6 +84,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             tabs: [
               Tab(icon: Icon(Icons.campaign), text: "Live Feed"),
               Tab(icon: Icon(Icons.engineering), text: "Technicians"),
+              Tab(icon: Icon(Icons.verified_user), text: "Approvals"),
               Tab(icon: Icon(Icons.list_alt), text: "Fault Queue"),
               Tab(icon: Icon(Icons.post_add), text: "News Manager"),
             ],
@@ -74,6 +95,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           children: [
             _buildPublicViewTab(),
             _buildWorkersTab(),
+            _buildApprovalsTab(),
             _buildAllFaultsTab(),
             _buildNewsManagerTab(),
           ],
@@ -82,7 +104,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  // --- TAB 1: LIVE FEED (Resident View) ---
+  // --- TAB 1: LIVE FEED ---
   Widget _buildPublicViewTab() {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _supabase
@@ -118,7 +140,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  // --- TAB 2: TECHNICIANS ---
+  // --- TAB 2: TECHNICIANS (Approved Only) ---
   Widget _buildWorkersTab() {
     return Column(
       children: [
@@ -142,10 +164,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ),
         Expanded(
           child: StreamBuilder<List<Map<String, dynamic>>>(
-            stream: _supabase
-                .from('profiles')
-                .stream(primaryKey: ['id'])
-                .eq('role', 'technician'),
+            stream: _supabase.from('profiles').stream(primaryKey: ['id']),
             builder: (context, snapshot) {
               if (!snapshot.hasData)
                 return const Center(child: CircularProgressIndicator());
@@ -176,7 +195,70 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  // --- TAB 3: FAULT QUEUE ---
+  // --- TAB 3: APPROVALS ---
+  Widget _buildApprovalsTab() {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: _supabase
+          .from('profiles')
+          .stream(primaryKey: ['id'])
+          .eq('role', 'technician'), // Only eq here
+      builder: (context, snapshot) {
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
+
+        final pending = snapshot.data!
+            .where((u) => u['is_approved'] == false)
+            .toList();
+        final approved = snapshot.data!
+            .where((u) => u['is_approved'] == true)
+            .toList();
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            _sectionHeader("Pending Approval (${pending.length})"),
+            ...pending.map((u) => _buildUserApprovalTile(u, false)),
+            const SizedBox(height: 24),
+            _sectionHeader("Approved Staff (${approved.length})"),
+            ...approved.map((u) => _buildUserApprovalTile(u, true)),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Colors.indigo[900],
+          fontSize: 16,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserApprovalTile(
+    Map<String, dynamic> user,
+    bool isCurrentlyApproved,
+  ) {
+    return Card(
+      child: ListTile(
+        title: Text(user['full_name'] ?? 'Unnamed Tech'),
+        subtitle: Text(user['email'] ?? 'No email'),
+        trailing: Switch(
+          value: isCurrentlyApproved,
+          activeColor: Colors.green,
+          onChanged: (val) => _updateApprovalStatus(user['id'], val),
+        ),
+      ),
+    );
+  }
+
+  // --- TAB 4: FAULT QUEUE ---
   Widget _buildAllFaultsTab() {
     return Column(
       children: [
@@ -184,7 +266,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Row(
-            // --- FIXED SYNTAX ERROR HERE ---
             children: ['all', 'pending', 'in-progress', 'resolved'].map((
               status,
             ) {
@@ -211,7 +292,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 : _supabase
                       .from('faults')
                       .stream(primaryKey: ['id'])
-                      .eq('status', _selectedStatusFilter)
+                      .eq(
+                        'status',
+                        _selectedStatusFilter,
+                      ) // Filter MUST come before order
                       .order('created_at', ascending: false),
             builder: (context, snapshot) {
               if (!snapshot.hasData)
@@ -246,7 +330,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  // --- TAB 4: NEWS MANAGER ---
+  // --- TAB 5: NEWS MANAGER ---
   Widget _buildNewsManagerTab() {
     return Column(
       children: [
@@ -312,7 +396,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ],
           ),
         ),
-        const Divider(height: 1),
         Expanded(
           child: StreamBuilder<List<Map<String, dynamic>>>(
             stream: _supabase
@@ -329,11 +412,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 itemBuilder: (context, index) {
                   final item = news[index];
                   return Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: Colors.grey[300]!),
-                    ),
                     child: ListTile(
                       leading: Icon(
                         item['category'] == 'water'
@@ -345,7 +423,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         item['title'],
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      subtitle: Text(item['body'], maxLines: 1),
                       trailing: PopupMenuButton<String>(
                         onSelected: (val) {
                           if (val == 'edit') _showEditNewsDialog(item);
@@ -387,11 +464,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     });
     _newsTitleController.clear();
     _newsBodyController.clear();
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text("News Published!")));
-    }
   }
 
   Future<void> _deleteNewsItem(String id) async {
@@ -443,7 +515,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final techs = await _supabase
         .from('profiles')
         .select('id, full_name')
-        .eq('role', 'technician');
+        .eq('role', 'technician')
+        .eq('is_approved', true);
     if (!mounted) return;
     showModalBottomSheet(
       context: context,
@@ -453,7 +526,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           const Padding(
             padding: EdgeInsets.all(16),
             child: Text(
-              "Assign Technician",
+              "Assign Approved Technician",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
           ),

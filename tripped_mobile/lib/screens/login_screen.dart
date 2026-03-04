@@ -13,7 +13,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _obscurePassword = true; // NEW: Track password visibility
+  bool _obscurePassword = true;
 
   Future<void> _login() async {
     if (_emailController.text.trim().isEmpty ||
@@ -34,6 +34,31 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (response.user != null) {
         if (!mounted) return;
+
+        // NEW: Check for Admin Approval before allowing entry
+        final userData = await Supabase.instance.client
+            .from('profiles')
+            .select('role, is_approved')
+            .eq('id', response.user!.id)
+            .single();
+
+        final String role = userData['role'] ?? 'resident';
+        final bool isApproved = userData['is_approved'] ?? false;
+
+        // Block Technicians who are not yet approved
+        if (role == 'technician' && !isApproved) {
+          await Supabase.instance.client.auth.signOut();
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Account pending admin approval. Please wait."),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return;
+        }
+
+        // If approved or if Resident, proceed to dashboard
         Navigator.pushReplacementNamed(context, '/dashboard_screen');
       }
     } on AuthException catch (e) {
@@ -55,6 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleForgotPassword() async {
     final email = _emailController.text.trim();
+
     if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Enter your email address above first")),
@@ -103,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.bolt_rounded, size: 120, color: themeDarkBlue),
+                const Icon(Icons.bolt, size: 120, color: themeDarkBlue),
                 const Text(
                   "TRIPPED",
                   style: TextStyle(
@@ -115,7 +141,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 60),
 
-                // EMAIL FIELD
                 TextField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
@@ -126,20 +151,19 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.5),
-                    prefixIcon: const Icon(
-                      Icons.person_outline,
-                      color: themeDarkBlue,
-                    ),
+                    fillColor: Colors.white.withOpacity(0.3),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.person_outline,
+                      color: themeDarkBlue,
                     ),
                   ),
                 ),
                 const SizedBox(height: 15),
 
-                // PASSWORD FIELD WITH TOGGLE
                 TextField(
                   controller: _passwordController,
                   obscureText: _obscurePassword,
@@ -150,7 +174,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.5),
+                    fillColor: Colors.white.withOpacity(0.3),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
                     prefixIcon: const Icon(
                       Icons.lock_outline,
                       color: themeDarkBlue,
@@ -165,10 +193,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       onPressed: () =>
                           setState(() => _obscurePassword = !_obscurePassword),
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
                   ),
                 ),
 
@@ -180,7 +204,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       "FORGOT PASSWORD?",
                       style: TextStyle(
                         color: themeDarkBlue,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w900,
                         fontSize: 12,
                       ),
                     ),
@@ -195,7 +219,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: themeDarkBlue,
                       foregroundColor: themeYellow,
-                      elevation: 2,
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -220,7 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     "DON'T HAVE AN ACCOUNT? SIGN UP",
                     style: TextStyle(
                       color: themeDarkBlue,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w900,
                       fontSize: 13,
                       decoration: TextDecoration.underline,
                     ),
